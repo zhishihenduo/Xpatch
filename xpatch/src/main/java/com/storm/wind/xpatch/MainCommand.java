@@ -1,14 +1,9 @@
 package com.storm.wind.xpatch;
 
 import com.storm.wind.xpatch.base.BaseCommand;
-import com.storm.wind.xpatch.task.ApkModifyTask;
 import com.storm.wind.xpatch.task.BuildAndSignApkTask;
-import com.storm.wind.xpatch.task.SaveApkSignatureTask;
 import com.storm.wind.xpatch.task.SaveOriginalApkTask;
-import com.storm.wind.xpatch.task.SaveOriginalApplicationNameTask;
-import com.storm.wind.xpatch.task.SoAndDexCopyTask;
 import com.storm.wind.xpatch.util.FileUtils;
-import com.storm.wind.xpatch.util.ManifestParser;
 import com.wind.meditor.core.FileProcesser;
 import com.wind.meditor.property.AttributeItem;
 import com.wind.meditor.property.ModificationProperty;
@@ -17,7 +12,6 @@ import com.wind.meditor.utils.NodeValue;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -78,6 +72,20 @@ public class MainCommand extends BaseCommand {
             "This will pack original apk into the new apk and the size will be twice of original one.")
     private boolean hookInstalledApkPath = false;  // 是否hook apk安装路径，使得绕过app对apk的校验
 
+
+    @Opt(opt = "replace_from", longOpt = "originApk", description = "replace file from ",
+            argName = "replace_from")
+    private String replaceFrom;
+
+    @Opt(opt = "replace_to", longOpt = "replace_to", description = "replace file  to",
+            argName = "replace_to")
+    private String replaceTo;
+
+    @Opt(opt = "ks", longOpt = "ks", description = "ks file ",
+            argName = "ks")
+    private String ks;
+
+
     // 原来apk中dex文件的数量
     private int dexFileCount = 0;
 
@@ -93,20 +101,16 @@ public class MainCommand extends BaseCommand {
 
     @Override
     protected void doCommandLine() {
-        if (remainingArgs.length != 1) {
-            if (remainingArgs.length == 0) {
-                System.out.println("Please choose one apk file you want to process. ");
-            }
-            if (remainingArgs.length > 1) {
-                System.out.println("This tool can only used with one apk file.");
-            }
-            usage();
-            return;
-        }
+
+
+        System.out.println("hell");
+//        apkPath = "C:\\Users\\Administrator\\Desktop\\lsp\\xpatch\\origin.apk";
+//        apkPath = "C:\\Users\\Administrator\\Desktop\\lsp\\xpatch\\tp.apk";
 
         apkPath = remainingArgs[0];
 
         File srcApkFile = new File(apkPath);
+        System.out.println("hello worl");
 
         if (!srcApkFile.exists()) {
             System.out.println(" The source apk file not exsit, please choose another one.  " +
@@ -149,109 +153,37 @@ public class MainCommand extends BaseCommand {
         // apk文件解压的目录
         unzipApkFilePath = tempFilePath + apkFileName + "-" + UNZIP_APK_FILE_NAME + File.separator;
 
-        if (showAllLogs) {
-            System.out.println(" !!!!! outputApkFileParentPath  =  " + outputApkFileParentPath +
-                    "\n unzipApkFilePath = " + unzipApkFilePath);
-        }
 
-        if (!disableCrackSignature) {
-            // save the apk original signature info, to support crach signature.
-            new SaveApkSignatureTask(apkPath, unzipApkFilePath).run();
-        }
+        System.out.println(" !!!!! outputApkFileParentPath  =  " + outputApkFileParentPath +
+                "\n unzipApkFilePath = " + unzipApkFilePath);
+
+
+//        if (!disableCrackSignature) {
+//            // save the apk original signature info, to support crach signature.
+//            new SaveApkSignatureTask(apkPath, unzipApkFilePath).run();
+//        }
 
         // 先解压apk到指定目录下
         long currentTime = System.currentTimeMillis();
         FileUtils.decompressZip(apkPath, unzipApkFilePath);
 
-        if (showAllLogs) {
-            System.out.println(" decompress apk cost time:  " + (System.currentTimeMillis() - currentTime));
-        }
 
-        // Get the dex count in the apk zip file
-        dexFileCount = findDexFileCount(unzipApkFilePath);
+        System.out.println(" decompress apk cost time:  " + (System.currentTimeMillis() - currentTime));
 
-        if (showAllLogs) {
-            System.out.println(" --- dexFileCount = " + dexFileCount);
-        }
 
-        String manifestFilePath = unzipApkFilePath + "AndroidManifest.xml";
+//        new SaveOriginalApkTask("", unzipApkFilePath).run();
+        System.out.println("SaveOriginalApkTask " + replaceFrom + " to  " + replaceTo + "  start ...");
+        new SaveOriginalApkTask(new File(new File(apkPath).getParent(), replaceFrom).getAbsolutePath(), unzipApkFilePath, replaceTo).run();
 
-        currentTime = System.currentTimeMillis();
+        System.out.println("BuildAndSignApkTask start...");
 
-        // parse the app main application full name from the manifest file
-        ManifestParser.Pair pair = ManifestParser.parseManifestFile(manifestFilePath);
-        String applicationName = null;
-        if (pair != null && pair.applicationName != null) {
-            applicationName = pair.applicationName;
-        }
-
-        if (showAllLogs) {
-            System.out.println(" Get application name cost time:  " + (System.currentTimeMillis() - currentTime));
-            System.out.println(" Get the application name --> " + applicationName);
-        }
-
-        // modify manifest
-        File manifestFile = new File(manifestFilePath);
-        String manifestFilePathNew = unzipApkFilePath  + "AndroidManifest" + "-" + currentTimeStr() + ".xml";
-        File manifestFileNew = new File(manifestFilePathNew);
-        manifestFile.renameTo(manifestFileNew);
-
-        modifyManifestFile(manifestFilePathNew, manifestFilePath, applicationName);
-
-        // new manifest may not exist
-        if (manifestFile.exists() && manifestFile.length() > 0) {
-            manifestFileNew.delete();
-        } else {
-            manifestFileNew.renameTo(manifestFile);
-        }
-
-        // save original main application name to asset file
-        if (isNotEmpty(applicationName)) {
-            mXpatchTasks.add(new SaveOriginalApplicationNameTask(applicationName, unzipApkFilePath));
-        }
-
-        //  modify the apk dex file to make xposed can run in it
-        if (dexModificationMode && isNotEmpty(applicationName)) {
-            mXpatchTasks.add(new ApkModifyTask(showAllLogs, keepBuildFiles, unzipApkFilePath, applicationName,
-                    dexFileCount));
-        }
-
-        String[] userInsertModule = getXposedModules(xposedModules);
-        List<String> xposedModuleList = new ArrayList<>();
-
-        if (hookInstalledApkPath) {
-            mXpatchTasks.add(new SaveOriginalApkTask(apkPath, unzipApkFilePath));
-
-            // Load the xposed module that hook the apk installed path
-            String dstXposedModulePath = (unzipApkFilePath + SaveOriginalApkTask.XPOSED_MODULE_ASSET_PATH).replace("/", File.separator);
-            xposedModuleList.add(dstXposedModulePath);
-        }
-
-        if (userInsertModule != null && userInsertModule.length > 0) {
-            xposedModuleList.addAll(Arrays.asList(userInsertModule));
-        }
-
-        //  copy xposed so and dex files into the unzipped apk
-        mXpatchTasks.add(new SoAndDexCopyTask(dexFileCount, unzipApkFilePath, xposedModuleList.toArray(new String[0])
-                , useWhaleHookFramework));
-
-        //  compress all files into an apk and then sign it.
-        mXpatchTasks.add(new BuildAndSignApkTask(keepBuildFiles, unzipApkFilePath, output, apkPath));
-
-        // excute these tasks
-        for (Runnable executor : mXpatchTasks) {
-            currentTime = System.currentTimeMillis();
-            executor.run();
-
-            if (showAllLogs) {
-                System.out.println(executor.getClass().getSimpleName() + "  cost time:  "
-                        + (System.currentTimeMillis() - currentTime));
-            }
-        }
+        new BuildAndSignApkTask(keepBuildFiles, unzipApkFilePath, output, apkPath, ks).run();
 
         // 5. delete all the build files that is useless now
         File unzipApkFile = new File(unzipApkFilePath);
         if (!keepBuildFiles && unzipApkFile.exists()) {
+            System.out.println("deleteDir unzipApkFile ...");
+
             FileUtils.deleteDir(unzipApkFile);
         }
 
@@ -259,6 +191,8 @@ public class MainCommand extends BaseCommand {
         if (!keepBuildFiles && tempFile.exists()) {
             tempFile.delete();
         }
+
+
     }
 
     private void modifyManifestFile(String filePath, String dstFilePath, String originalApplicationName) {

@@ -3,6 +3,7 @@ package com.storm.wind.xpatch.task;
 import com.android.apksigner.ApkSignerTool;
 import com.storm.wind.xpatch.util.FileUtils;
 import com.storm.wind.xpatch.util.ShellCmdUtil;
+
 import java.io.File;
 import java.util.ArrayList;
 
@@ -18,12 +19,21 @@ public class BuildAndSignApkTask implements Runnable {
     private String unzipApkFilePath;
 
     private String originalApkFilePath;
+    private String keystorePath;
 
     public BuildAndSignApkTask(boolean keepUnsignedApkFile, String unzipApkFilePath, String signedApkPath, String originalApkFilePath) {
         this.keepUnsignedApkFile = keepUnsignedApkFile;
         this.unzipApkFilePath = unzipApkFilePath;
         this.signedApkPath = signedApkPath;
         this.originalApkFilePath = originalApkFilePath;
+    }
+
+    public BuildAndSignApkTask(boolean keepUnsignedApkFile, String unzipApkFilePath, String signedApkPath, String originalApkFilePath, String keystorePath) {
+        this.keepUnsignedApkFile = keepUnsignedApkFile;
+        this.unzipApkFilePath = unzipApkFilePath;
+        this.signedApkPath = signedApkPath;
+        this.originalApkFilePath = originalApkFilePath;
+        this.keystorePath = keystorePath;
     }
 
     @Override
@@ -36,6 +46,7 @@ public class BuildAndSignApkTask implements Runnable {
         FileUtils.compressToZip(unzipApkFilePath, unsignedApkPath);
 
         // 将签名文件复制从assets目录下复制出来
+//        String keyStoreFilePath = ;
         String keyStoreFilePath = unzipApkFile.getParent() + File.separator + "keystore";
 
         File keyStoreFile = new File(keyStoreFilePath);
@@ -49,10 +60,13 @@ public class BuildAndSignApkTask implements Runnable {
             keyStoreAssetPath = "assets/keystore";
         }
 
-        FileUtils.copyFileFromJar(keyStoreAssetPath, keyStoreFilePath);
+        System.out.println("ks path: -->" + keystorePath);
+        FileUtils.copyFile(keystorePath, keyStoreFilePath);
+//        FileUtils.copyFileFromJar(keyStoreAssetPath, keyStoreFilePath);
 
         String unsignedZipalignedApkPath = unzipApkFile.getParent() + File.separator + "unsigned_zipaligned.apk";
         try {
+            //apk 对齐
             zipalignApk(unsignedApkPath, unsignedZipalignedApkPath);
         } catch (Exception e) {
             e.printStackTrace();
@@ -64,6 +78,7 @@ public class BuildAndSignApkTask implements Runnable {
             System.out.println(" zipalign apk failed, just sign not zipaligned apk !!!");
         }
 
+        //对齐后签名
         boolean signResult = signApk(apkPath, keyStoreFilePath, signedApkPath);
 
         File unsignedApkFile = new File(unsignedApkPath);
@@ -153,6 +168,8 @@ public class BuildAndSignApkTask implements Runnable {
         commandList.add("true");
         commandList.add("--v3-signing-enabled");   // v3签名不兼容android 6
         commandList.add("true");
+        commandList.add("--min-sdk-version");   // v3签名不兼容android 6
+        commandList.add("21");
         commandList.add(apkPath);
 
         int size = commandList.size();

@@ -1,4 +1,8 @@
-# What is Xpatch
+ 
+
+
+
+
 
 Xpatch is a jar tool which is used to repackage the apk file. Then, the new apk can load any Xposed modules installed in the android system.  
 

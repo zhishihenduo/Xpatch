@@ -1,6 +1,17 @@
 ### [**English Version**](https://github.com/WindySha/Xpatch/blob/6ec0f3c16128dda46ab05bdd915d66ebbdaaf9fc/README_en.md)
 
+
 # Android App破解工具Xpatch的使用方法
+java -jar Xpatch.jar "C:\Users\Administrator\Desktop\lsp\xpatch\tp.apk" -replace_from hook -replace_to assets/hook --force
+#强制替换 文件 代码
+
+
+
+
+
+# Android App破解工具Xpatch的使用方法
+
+
 
 ## Xpatch概述
 Xpatch用来重新签名打包Apk文件，使重打包后的Apk能加载安装在系统里的Xposed插件，从而实现免Root Hook任意App。
